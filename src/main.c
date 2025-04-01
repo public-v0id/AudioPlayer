@@ -1,3 +1,4 @@
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <portaudio.h>
@@ -83,41 +84,54 @@ int main(int argc, char** argv)	{
 		fprintf(stderr, "Missing input filename\n");
 		return 0;
 	}
-	if (argc > 2) {
-		fprintf(stderr, "Too many arguments!\n");
-		return 0;
-	}
+	srand(time(NULL));
 	char** playlist;
 	size_t songs = 0;
-	if (strncmp(argv[1], "--playlist=", 11) == 0) {
-		char* plname = argv[1]+11;
-		FILE* file = fopen(plname, "r");
-		char line[256];
-		if (file == NULL) {
-			fprintf(stderr, "Couldn't open file!\n");
-			return 0;
-		}
-		while (fgets(line, sizeof(line), file)) {
-			++songs;
-		}
-		playlist = malloc(sizeof(char*)*songs);
-		rewind(file);
-		size_t i = 0;
-		while (fgets(line, sizeof(line), file)) {
-			size_t length = strlen(line);
-			if (line[length-1] == '\n') {
-				length -= 1;
+	bool list = false, random = false;
+	for (int arg = 1; arg < argc; ++arg) {
+		if (strncmp(argv[arg], "--playlist=", 11) == 0) {
+			list = true;
+			char* plname = argv[arg]+11;
+			FILE* file = fopen(plname, "r");
+			char line[256];
+			if (file == NULL) {
+				fprintf(stderr, "Couldn't open file!\n");
+				return 0;
 			}
-			playlist[i] = (char*)calloc(length, sizeof(char));
-			memcpy(playlist[i], line, length);
-			++i;
+			while (fgets(line, sizeof(line), file)) {
+				++songs;
+			}
+			playlist = malloc(sizeof(char*)*songs);
+			rewind(file);
+			size_t i = 0;
+			while (fgets(line, sizeof(line), file)) {
+				size_t length = strlen(line);
+				if (line[length-1] == '\n') {
+					length -= 1;
+				}
+				playlist[i] = (char*)calloc(length, sizeof(char));
+				memcpy(playlist[i], line, length);
+				++i;
+			}
+			fclose(file);
+			continue;
 		}
-		fclose(file);
+		if (strncmp(argv[arg], "-r", 2) == 0) {
+			random = true;
+		}
 	}
-	else {
+	if (!list) {
 		playlist = malloc(sizeof(char*)*1);
 		playlist[0] = argv[1];
 		songs = 0;				//no need to free stack memory
+	}
+	if (!list && argc > 2) {
+		fprintf(stderr, "Incorrect usage! If you want to play a single song, type player *songname*\n");
+		for (size_t i = 0; i < songs; ++i) {
+			free(playlist[i]);
+		}
+		free(playlist);
+		return 0;
 	}
 	paused = false;
 	audioData data;
@@ -125,12 +139,20 @@ int main(int argc, char** argv)	{
 	data.buffer = (float*)malloc(256*8*sizeof(float));
 	if (data.buffer == NULL) {
 		fprintf(stderr, "Couldn't open file!\n");
+		for (size_t i = 0; i < songs; ++i) {
+			free(playlist[i]);
+		}
+		free(playlist);
 		return 0;
 	}
 	PaError	err = Pa_Initialize();
 	if (err	!= paNoError) {
 		fprintf(stderr,	"PortAudio error! %s\n", Pa_GetErrorText(err));
 		free(data.buffer);
+		for (size_t i = 0; i < songs; ++i) {
+			free(playlist[i]);
+		}
+		free(playlist);
 		return 0;
 	}
 	int nDev = Pa_GetDeviceCount();
@@ -140,8 +162,8 @@ int main(int argc, char** argv)	{
 		Pa_Terminate();
 		for (size_t i = 0; i < songs; ++i) {
 			free(playlist[i]);
-			free(playlist);
 		}
+		free (playlist);
 		return 0;
 	}
 	const PaDeviceInfo *devInfo;
@@ -155,14 +177,14 @@ int main(int argc, char** argv)	{
 	ch--; 
 	size_t curSong = 0;
 	PaStream* outStream;
-	err = openAudioFile(&data, playlist[0], ch, &outStream);
+	err = openAudioFile(&data, playlist[random ? rand() % songs: 0], ch, &outStream);
 	if (err != paNoError) {
 		fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 		free(data.buffer);
 		for (size_t i = 0; i < songs; ++i) {
 			free(playlist[i]);
-			free(playlist);
 		}
+		free(playlist);
 		Pa_Terminate();
 		return 0;
 	}
@@ -183,8 +205,8 @@ int main(int argc, char** argv)	{
 		free(data.buffer);
 		for (size_t i = 0; i < songs; ++i) {
 			free(playlist[i]);
-			free(playlist);
 		}
+		free(playlist);
 		Pa_Terminate();
 		return 0;
 	}
@@ -212,19 +234,19 @@ int main(int argc, char** argv)	{
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
 						free(playlist[i]);
-						free(playlist);
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
-				err = openAudioFile(&data, playlist[++curSong], ch, &outStream);
+				err = openAudioFile(&data, playlist[random ? rand()%songs : ++curSong], ch, &outStream);
 				if (err != paNoError) {
 					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
 						free(playlist[i]);
-						free(playlist);
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
@@ -234,8 +256,8 @@ int main(int argc, char** argv)	{
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
 						free(playlist[i]);
-						free(playlist);
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
@@ -250,19 +272,19 @@ int main(int argc, char** argv)	{
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
 						free(playlist[i]);
-						free(playlist);
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
-				err = openAudioFile(&data, playlist[--curSong], ch, &outStream);
+				err = openAudioFile(&data, playlist[random ? rand()%songs : --curSong], ch, &outStream);
 				if (err != paNoError) {
 					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
 						free(playlist[i]);
-						free(playlist);
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
@@ -271,9 +293,9 @@ int main(int argc, char** argv)	{
 					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 					free(data.buffer);
 					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-						free(playlist);
+						free(playlist[i]);	
 					}
+					free(playlist);
 					Pa_Terminate();
 					return 0;
 				}
@@ -288,9 +310,9 @@ int main(int argc, char** argv)	{
 		fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 		free(data.buffer);
 		for (size_t i = 0; i < songs; ++i) {
-			free(playlist[i]);
-			free(playlist);
+			free(playlist[i]);	
 		}
+		free(playlist);
 		Pa_Terminate();
 		return 0;
 	}
@@ -302,11 +324,15 @@ int main(int argc, char** argv)	{
 		fprintf(stderr,	"PortAudio error! %s\n", Pa_GetErrorText(err));
 		free(data.buffer);
 		for (size_t i = 0; i < songs; ++i) {
-			free(playlist[i]);
-			free(playlist);
+			free(playlist[i]);	
 		}
+		free(playlist);
 		return 0;
 	}
 	endwin();
 	free(data.buffer);
+	for (size_t i = 0; i < songs; ++i) {
+		free(playlist[i]);	
+	}
+	free(playlist);
 }
