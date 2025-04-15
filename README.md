@@ -27,4 +27,6 @@ If you wnat to use your own ASCII logo file, type
 
     --logo=*path*
 
+When using, you can exit the player with 'q' or 'Esc' key, pause the track with 'Space' key, go to the next track with 'n' key or to the previous one using 'p' key
+
 ###### St. Petersburg, 2025, No rights reserved
