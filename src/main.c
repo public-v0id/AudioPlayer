@@ -23,6 +23,7 @@ typedef struct {
 
 size_t acc, yres;
 volatile bool paused;
+volatile int curBtn;
 
 static int outputCallback(const void *inputBuffer, void *outputBuffer, unsigned long framesPerBuffer,
 				const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags,
@@ -54,6 +55,7 @@ typedef struct {
 	int* x;
 	int* y;
 	int h;
+	int btn;
 } graphArgs;
 
 void* graphOut(void *args) {
@@ -72,6 +74,10 @@ void* graphOut(void *args) {
 	int line = 0;
 	int cnt = 0;
 	int sz = 0;
+	char btn[3][11] = {"[ ][Prev]", "[ ][Pause]", "[ ][Next]"};
+	int btnCnt = 3;
+	int space = (w-28)/4;
+	curBtn = 1;
 	if (logo) {
 		while (fgets(logoText[line], w, logo)) {
 			for (int i = 0; i < w; ++i) {
@@ -97,27 +103,58 @@ void* graphOut(void *args) {
 			}
 		}
 	}
-	printf("%d %d %d", line, cnt, sz);
 	int stdist = 3*sz/2;
 	int mid_h = h/2;
 	int mid_w = w/2;
 	struct timespec rawtime;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &rawtime);
-	while (true) {
+	while (true) {	
 		if (paused) {
+			clear();
+			int curC = space;
+			btn[curBtn][1] = 'X';
+			for (int i = 0; i < btnCnt; ++i) {
+				move(h-2, curC);
+			       	printw(btn[i]);
+				btn[i][1] = ' ';
+				curC += space + strlen(btn[i]);
+			}
+			for (int i = 0; i < acc/2; ++i) {
+				mvaddch(yres-6-(1-grargs->mode)*yres/2, i, 'O');
+			}
+			if (grargs->mode) {
+				for (int i = 0; i < cnt; ++i) {
+	                        	int x_cur, y_cur;
+        	                	x_cur = mid_w+(int)(grargs->x[i]*sin(ang)); 
+                	        	y_cur = mid_h+(int)(grargs->y[i]*(stdist-grargs->x[i]*cos(ang))/stdist);
+                        		mvaddch(y_cur, x_cur, '8');
+				}
+			}
+			refresh();
 			continue;
 		}
 		float *rptr = ((audioData*)(grargs->userData))->buffer;	
 		clear();
 		int32_t intensity = 0;
+		int curC = space;
+		btn[curBtn][1] = 'X';
+		for (int i = 0; i < btnCnt; ++i) {
+			move(h-2, curC);
+		       	printw(btn[i]);
+			btn[i][1] = ' ';
+			curC += space + strlen(btn[i]);
+		}
 		for (size_t k = 0; k < acc/2; ++k) {
 			float complex im = CMPLX(0,1);
 			float complex x = 0;	
 			for (int i = 0; i < ((audioData*)(grargs->userData))->sfinfo.channels*((audioData*)(grargs->userData))->sfinfo.channels*((audioData*)(grargs->userData))->sfinfo.channels*grargs->framesPerBuffer; ++i) {
 				x += rptr[i]*cexpf(-2.0f*im*PI*i*(((1-grargs->mode)*acc/4+k)%(acc/2))/acc);
 			}
-			int h = (int)(sqrt(creal(x)*creal(x)+cimag(x)*cimag(x)));
-			mvaddch(yres-1-h, k, 'O');
+			int h = (int)(sqrt(creal(x)*creal(x)+cimag(x)*cimag(x)))/(2-grargs->mode);
+			if (!grargs->mode) {
+				mvaddch(yres-6+h-yres*(1-grargs->mode)/2, k,
+						'O'); }
+			mvaddch(yres-6-h-yres*(1-grargs->mode)/2, k, 'O');
 			intensity += h;
 		}
 		if (grargs->mode) {
@@ -283,6 +320,7 @@ int main(int argc, char** argv)	{
 	}
 	printf("Opened!\n");
 	initscr();
+	noecho();
 	pthread_t graph_id;	
 	gr_args.framesPerBuffer = 256;
 	gr_args.userData = &data;
@@ -302,117 +340,146 @@ int main(int argc, char** argv)	{
 		Pa_Terminate();
 		return 0;
 	}
-	char ctrl;
-	while ((ctrl = getch()) != 27 && ctrl != 'q') {
+	keypad(stdscr, TRUE);
+	int ctrl;
+	while ((ctrl = getch()) != 'q') {
 		switch(ctrl) {
+			case KEY_LEFT:
+				if (curBtn > 0) {
+					curBtn--;
+				}
+				break;
+			case KEY_RIGHT:
+				if (curBtn < 2) {
+					++curBtn;
+				}
+				break;
 			case ' ':
-				if (!paused) {
-					err = Pa_StopStream(outStream);
-				}
-				else {
-					err = Pa_StartStream(outStream);
-				}
-				if (err == paNoError) {
-					paused = !paused;
-				}
-				break;
-			case 'n':
-				if (curSong >= songs-1) {
+				switch (curBtn) {
+					case 1: //pause
+						if (!paused) {
+							err = Pa_StopStream(outStream);
+						}
+						else {
+							err = Pa_StartStream(outStream);
+						}
+						if (err == paNoError) {
+							paused = !paused;
+						}
+					break;
+					case 2: //next
+						if (curSong >= plSize-1) {
+							break;
+						}
+						if (!paused) {
+							err = Pa_StopStream(outStream);
+							if (err != paNoError) {
+								fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+								free(data.buffer);
+								for (size_t i = 0; i < songs; ++i) {
+									free(playlist[i]);
+								}
+								free(playlist);
+								endwin();
+								Pa_Terminate();
+								return 0;
+							}
+						}
+						err = openAudioFile(&data, playlist[random ? rand()%songs : ++curSong], ch, &outStream);
+						if (err != paNoError) {
+							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+							free(data.buffer);
+							for (size_t i = 0; i < songs; ++i) {
+								free(playlist[i]);
+							}
+							free(playlist);
+							endwin();
+							Pa_Terminate();
+							return 0;
+						}
+						paused = false;
+						err = Pa_StartStream(outStream);
+						if (err != paNoError) {
+							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+							free(data.buffer);
+							for (size_t i = 0; i < songs; ++i) {
+								free(playlist[i]);
+							}
+							free(playlist);
+							endwin();
+							Pa_Terminate();
+							return 0;
+						}
+					break;
+					case 0: //prev
+						if (curSong <= 0) {
+							break;
+						}
+						if (!paused) {
+							err = Pa_StopStream(outStream);
+							if (err != paNoError) {
+								fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+								free(data.buffer);
+								for (size_t i = 0; i < songs; ++i) {
+									free(playlist[i]);
+								}
+								free(playlist);
+								endwin();
+								Pa_Terminate();
+								return 0;
+							}
+						}
+						err = openAudioFile(&data, playlist[random ? rand()%songs : --curSong], ch, &outStream);
+						if (err != paNoError) {
+							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+							free(data.buffer);
+							for (size_t i = 0; i < songs; ++i) {
+								free(playlist[i]);
+							}
+							free(playlist);
+							endwin();
+							Pa_Terminate();
+							return 0;
+						}
+						paused = false;
+						err = Pa_StartStream(outStream);
+						if (err != paNoError) {
+							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+							free(data.buffer);
+							for (size_t i = 0; i < songs; ++i) {
+								free(playlist[i]);	
+							}
+							free(playlist);
+							endwin();
+							Pa_Terminate();
+							return 0;
+						}
 					break;
 				}
-				err = Pa_StopStream(outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				err = openAudioFile(&data, playlist[random ? rand()%songs : ++curSong], ch, &outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				err = Pa_StartStream(outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				break;
-			case 'p':
-				if (curSong <= 0) {
-					break;
-				}
-				err = Pa_StopStream(outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				err = openAudioFile(&data, playlist[random ? rand()%songs : --curSong], ch, &outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				err = Pa_StartStream(outStream);
-				if (err != paNoError) {
-					fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-					free(data.buffer);
-					for (size_t i = 0; i < songs; ++i) {
-						free(playlist[i]);	
-					}
-					free(playlist);
-					Pa_Terminate();
-					return 0;
-				}
-				break;
-
+			break;
 		}
 	}
-	err = Pa_StopStream(outStream);
-	if (err	!= paNoError) {
-		pthread_cancel(graph_id);
-		endwin();
-		fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
-		free(data.buffer);
-		for (size_t i = 0; i < songs; ++i) {
-			free(playlist[i]);	
+	if (!paused) {
+		err = Pa_StopStream(outStream);
+		if (err	!= paNoError) {
+			pthread_cancel(graph_id);
+			endwin();
+			fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+			free(data.buffer);
+			for (size_t i = 0; i < songs; ++i) {
+				free(playlist[i]);	
+			}
+			free(playlist);
+			Pa_Terminate();
+			return 0;
 		}
-		free(playlist);
-		Pa_Terminate();
-		return 0;
 	}
 	Pa_CloseStream(outStream);
 	pthread_cancel(graph_id);
 	err = Pa_Terminate();
 	if (err	!= paNoError) {
 		endwin();
+		printf("Ended win\n");
 		fprintf(stderr,	"PortAudio error! %s\n", Pa_GetErrorText(err));
 		free(data.buffer);
 		for (size_t i = 0; i < songs; ++i) {
@@ -422,6 +489,7 @@ int main(int argc, char** argv)	{
 		return 0;
 	}
 	endwin();
+	printf("Ended win\n");
 	free(data.buffer);
 	for (size_t i = 0; i < songs; ++i) {
 		free(playlist[i]);	
