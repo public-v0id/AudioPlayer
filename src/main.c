@@ -111,7 +111,8 @@ void* graphOut(void *args) {
 			}
 		}
 	}
-	else {
+	else if (grargs->mode == 1) {
+		fprintf(stderr, "No logo file\n");
 		grargs->logoText = malloc(sizeof(char*));
 		grargs->logoText[0] = malloc(sizeof(char));
 		{
@@ -127,6 +128,13 @@ void* graphOut(void *args) {
 		grargs->h = 1;
 		sz = 135;
 		cnt = 450;
+	}
+	else if (grargs->mode == 0) {
+		grargs->logoText = malloc(sizeof(char*));
+		grargs->logoText[0] = malloc(sizeof(char));
+		grargs->x = malloc(sizeof(int));
+		grargs->y = malloc(sizeof(int));
+		grargs->h = 0;
 	}
 	int stdist = 3*sz/2;
 	int mid_h = h/2;
@@ -466,9 +474,10 @@ int main(int argc, char** argv)	{
 						}
 					break;
 					case 3: //next
-						if (curSong == playlist_e) {
+						if (curSong == playlist_e || curSong->next == NULL) {
 							break;
 						}
+//						fprintf(stdout, "Moving to next\n");
 						if (!paused) {
 							err = Pa_StopStream(outStream);
 							if (err != paNoError) {
@@ -480,7 +489,9 @@ int main(int argc, char** argv)	{
 								return 0;
 							}
 						}
+//						fprintf(stdout, "Stopped prev\n");
 						curSong = curSong->next;
+//						fprintf(stdout, "Switched song\n");
 						err = openAudioFile(&data, curSong->song, ch, &outStream);
 						if (err != paNoError) {
 							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
@@ -490,8 +501,10 @@ int main(int argc, char** argv)	{
 							Pa_Terminate();
 							return 0;
 						}
+						fprintf(stdout, "Opened file\n");
 						paused = false;
 						err = Pa_StartStream(outStream);
+//						fprintf(stdout, "Started stream\n");
 						if (err != paNoError) {
 							fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
 							free(data.buffer);
@@ -502,7 +515,7 @@ int main(int argc, char** argv)	{
 						}
 					break;
 					case 1: //prev
-						if (curSong == playlist_b) {
+						if (curSong == playlist_b || curSong->prev == NULL) {
 							break;
 						}
 						if (!paused) {
@@ -567,10 +580,16 @@ int main(int argc, char** argv)	{
 		return 0;
 	}
 	endwin();
+//	printf("Freeing buffer\n");
 	free(data.buffer);
+//	printf("Freeing playlist\n");
 	pl_free(playlist_b);
+//	printf("Freeing logotext\n");
 	for (int i = 0; i < gr_args.h; ++i) {
 		free(gr_args.logoText[i]);
 	}
 	free(gr_args.logoText);
+//	printf("Freeing xy\n");
+	free(gr_args.x);
+	free(gr_args.y);
 }
