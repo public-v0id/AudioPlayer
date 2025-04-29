@@ -158,11 +158,11 @@ void* graphOut(void *args) {
 			int curC = space;
 			btn[curBtn][1] = 'X';
 			move (1, 2);
-			printw(btn[0]);
+			printw("%s", btn[0]);
 			btn[0][1] = ' ';
 			for (int i = 1; i < btnCnt; ++i) {
 				move(h-2, curC);
-			       	printw(btn[i]);
+			       	printw("%s", btn[i]);
 				btn[i][1] = ' ';
 				curC += space + strlen(btn[i]);
 			}
@@ -201,11 +201,11 @@ void* graphOut(void *args) {
 		int curC = space;
 		btn[curBtn][1] = 'X';
 		move (1, 2);
-		printw(btn[0]);
+		printw("%s", btn[0]);
 		btn[0][1] = ' ';
 		for (int i = 1; i < btnCnt; ++i) {
 			move(h-2, curC);
-		       	printw(btn[i]);
+		       	printw("%s", btn[i]);
 			btn[i][1] = ' ';
 			curC += space + strlen(btn[i]);
 		}
