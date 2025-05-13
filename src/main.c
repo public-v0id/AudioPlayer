@@ -378,6 +378,10 @@ char* allocFilename(char* songname) {
 		song[1] = '/';
 	}
 	song[strlen(songname)+move] = 0;
+	for (long i = 0; i < strlen(song); ++i) {
+		printf("%d ", (unsigned int)song[i]);
+	}
+	printf("\n");
 //	printf("len is %ld\n", strlen(song));
 	return song;
 }
