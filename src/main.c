@@ -156,16 +156,31 @@ out:
 		cnt = 0;	
 		for (int i = 0; i < len; ++i) {
 //			printf("%c\n", bandname[i]);
-			cnt += alphabet[(unsigned int)bandname[i]].sz;
+			uint32_t letter = (uint8_t)bandname[i];
+			if (letter >= 0xD0 && letter <= 0xD1) {
+				letter *= 256;
+				++i;
+				if (i >= len) break;
+				letter += alphabet[(uint8_t)bandname[i]].sz;
+			}
+			printf("%u ", letter);
+			cnt += alphabet[letter].sz;	
 		}
 //		printf("%s %d %d\n", bandname, sz, cnt);
 		grargs->x = malloc(sizeof(int)*cnt);
 		grargs->y = malloc(sizeof(int)*cnt);
-		int cur = 0;
+		int cur = 0;	
 		for (int i = 0; i < len; ++i) {
-			for (int j = 0; j < alphabet[(unsigned int)bandname[i]].sz; ++j) {
-				grargs->x[cur] = alphabet[(unsigned int)bandname[i]].x[j]+10*i-5*len;
-				grargs->y[cur] = alphabet[(unsigned int)bandname[i]].y[j]-5;
+			uint32_t letter = (uint8_t)bandname[i];
+			if (letter >= 0xD0 && letter <= 0xD1) {
+				letter *= 256;
+				++i;
+				if (i >= len) break;
+				letter += alphabet[(uint8_t)bandname[i]].sz;
+			}
+			for (int j = 0; j < alphabet[(uint8_t)bandname[i]].sz; ++j) {
+				grargs->x[cur] = alphabet[letter].x[j]+10*i-5*len;
+				grargs->y[cur] = alphabet[letter].y[j]-5;
 				++cur;		
 			}
 		}
@@ -330,7 +345,7 @@ void pl_free(playlist_t* pl) {
 PaError openAudioFile(audioData* data, char* name, int ch, PaStream** outStream) {
 	data->file = sf_open(name, SFM_READ, &data->sfinfo);	
 	if (!data->file) {
-		fprintf(stderr, "Unable to open file!\n");
+		fprintf(stderr, "Unable to open file! Error number %d\n", sf_error(data->file));
 		return paNoError+1;
 	}
 	data->framesRemaining = data->sfinfo.frames;	
@@ -384,6 +399,20 @@ char* allocFilename(char* songname) {
 	printf("\n");
 //	printf("len is %ld\n", strlen(song));
 	return song;
+}
+
+int utf8_length(const char *s) {
+	if (*s < 128)
+		return 1;
+	if (*s < 128+64)
+		return -1;
+	if (*s < 128+64+32)
+		return 2;
+	if (*s < 128+64+32+16)
+		return 3;
+	if (*s < 128+64+32+16+8)
+		return 4;
+	return -1;
 }
 
 int main(int argc, char** argv)	{	
@@ -464,7 +493,7 @@ int main(int argc, char** argv)	{
 		while ((entry = readdir(dir)) != NULL) {
 			size_t len = strlen(entry->d_name);
 			printf("%s\n", entry->d_name);
-			if (len > 4 && (strncmp(entry->d_name+len-4, ".mp3", 4) == 0 || strncmp(entry->d_name+len-4, ".wav", 4) == 0 || strncmp(entry->d_name+len-5, ".flac", 5) == 0)) {
+			if (len > 3 && (strncmp(entry->d_name+len-4, ".mp3", 4) == 0 || strncmp(entry->d_name+len-4, ".wav", 4) == 0 || strncmp(entry->d_name+len-5, ".flac", 5) == 0)) {
 				++songs;
 				printf("song\n");
 				playlist_t* new = malloc(sizeof(playlist_t));

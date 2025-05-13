@@ -1,6 +1,6 @@
 #include "alphabet.h"
 
-letter alphabet[256];
+letter alphabet[2048];
 
 const int Aarr_x[] = {1, 2, 3, 4, 5, 6, 0, 7, 0, 7, 0, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 7, 0, 7, 0, 7};
 const int Aarr_y[] = {0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 6, 6, 7, 7};

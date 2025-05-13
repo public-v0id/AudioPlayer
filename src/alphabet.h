@@ -7,7 +7,7 @@ typedef struct {
 	int sz;
 } letter;
 
-extern letter alphabet[256];
+extern letter alphabet[2048];
 
 void alphabet_init();
 
