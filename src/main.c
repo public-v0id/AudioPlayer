@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <dirent.h>
+#include "alphabet.h"
 
 #define TABLE_SIZE 200
 #define PI (3.14159265)
@@ -60,6 +61,7 @@ typedef struct {
 	void* userData;
 	char* logoFile;
 	char** logoText;
+	char* trackname;
 	int* x;
 	int* y;
 	int h;
@@ -77,17 +79,27 @@ void* graphOut(void *args) {
 	btnCnt = 4;
 	int space = (w-28)/4;
 	curBtn = 2;
-	int cnt = 0;
+	volatile int cnt = 0;
 	int sz = 0;	
+	char* bandname = NULL;
 	if (grargs->logoFile != NULL) {
+//		fprintf(stderr, "opening\n");
 		FILE* logo = fopen(grargs->logoFile, "r");
 		grargs->logoText = malloc(h*sizeof(char*));
+		if (grargs->logoText == NULL) {
+			printf("Malloc error!\n");
+		}
+//		fprintf(stderr, "malloc\n");
 		logoText = grargs->logoText;
 		for (int i = 0; i < h; ++i) {
 			logoText[i] = malloc(sizeof(char)*w);	
+			if (logoText[i] == NULL) {
+				printf("Malloc error! %d\n", i);
+			}
 		}	
 		int line = 0;
-		while (fgets(logoText[line], w, logo)) {
+		while (line < h-10 && fgets(logoText[line], w, logo)) {
+//			fprintf(stderr, "%d", line);
 			for (int i = 0; i < w; ++i) {
 				if (logoText[line][i] != ' ' && logoText[line][i] != 0) {
 					++cnt;
@@ -100,6 +112,7 @@ void* graphOut(void *args) {
 		}
 		grargs->x = malloc(sizeof(int)*cnt);
 		grargs->y = malloc(sizeof(int)*cnt);
+//		fprintf(stderr, "two other mallocs\n");
 		int cur_num = 0;
 		for (int i = 0; i < line; ++i) {
 			for (int j = 0; j < sz; ++j) {
@@ -115,19 +128,50 @@ void* graphOut(void *args) {
 		fprintf(stderr, "No logo file\n");
 		grargs->logoText = malloc(sizeof(char*));
 		grargs->logoText[0] = malloc(sizeof(char));
-		{
-			int tmp[] = {-67, -66, -65, -64, -63, -62, -61, -60, -55, -54, -47, -46, -43, -42, -41, -40, -39, -38, -31, -30, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -4, -3, -2, -1, 0, 1, 18, 19, 28, 29, 34, 35, 36, 37, 38, 39, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, -67, -66, -60, -59, -55, -54, -47, -46, -43, -42, -37, -36, -31, -30, -15, -14, -5, -4, 1, 2, 18, 19, 28, 29, 33, 34, 39, 40, 48, 49, 56, 57, 65, 66, -67, -66, -63, -62, -59, -58, -55, -54, -47, -46, -43, -42, -40, -39, -36, -35, -31, -30, -15, -14, -6, -5, 2, 3, 18, 19, 28, 29, 33, 34, 39, 40, 48, 49, 56, 57, 60, 61, 62, 66, 67, -67, -66, -63, -62, -59, -58, -55, -54, -47, -46, -43, -42, -37, -36, -31, -30, -15, -14, -7, -6, 18, 19, 28, 29, 32, 33, 38, 39, 40, 41, 48, 49, 56, 57, 60, 62, 63, 66, 67, -67, -66, -60, -59, -55, -54, -47, -46, -43, -42, -41, -40, -39, -38, -37, -31, -30, -15, -14, -7, -6, 19, 20, 27, 28, 32, 33, 37, 38, 40, 41, 48, 49, 56, 57, 60, 63, 66, 67, -67, -66, -65, -64, -63, -62, -61, -60, -55, -54, -47, -46, -43, -42, -36, -35, -31, -30, -15, -14, -7, -6, 19, 20, 27, 28, 32, 33, 36, 37, 40, 41, 48, 49, 56, 57, 60, 63, 66, 67, -67, -66, -55, -54, -47, -46, -43, -42, -39, -38, -35, -34, -31, -30, -15, -14, -7, -6, 19, 20, 27, 28, 32, 33, 35, 36, 40, 41, 48, 49, 56, 57, 60, 62, 63, 66, 67, -67, -66, -55, -54, -47, -46, -43, -42, -39, -38, -35, -34, -31, -30, -15, -14, -6, -5, 2, 3, 20, 21, 26, 27, 33, 34, 35, 39, 40, 48, 49, 56, 57, 60, 61, 62, 66, 67, -67, -66, -54, -53, -47, -46, -43, -42, -36, -35, -31, -30, -15, -14, -5, -4, 1, 2, 21, 22, 25, 26, 33, 34, 39, 40, 48, 49, 56, 57, 65, 66, -67, -66, -53, -52, -51, -50, -49, -48, -47, -46, -43, -42, -41, -40, -39, -38, -37, -36, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -4, -3, -2, -1, 0, 1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 22, 23, 24, 25, 34, 35, 36, 37, 38, 39, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65};
-			grargs->x = malloc(sizeof(int)*450);
-			memcpy(grargs->x, tmp, sizeof(int)*450);
-		}
-		{
-			int tmp[] = {-5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
-			grargs->y = malloc(sizeof(int)*450);
-			memcpy(grargs->y, tmp, sizeof(int)*450);
-		}
 		grargs->h = 1;
-		sz = 135;
-		cnt = 450;
+		bandname = grargs->trackname;	
+		int len = 0;
+		char* spl = strchr(bandname, '-');
+		if (spl == NULL) {	
+			bandname = "Unknown";
+			len = strlen(bandname);
+			goto out;
+		}
+		if (spl <= bandname) {
+			bandname = "Unknown";
+			len = strlen(bandname);
+			goto out;
+		}
+		while (*spl == '-' || *spl == ' ') {
+			--spl;
+		}
+		if (spl < bandname) {
+			bandname = "Unknown";
+			len = strlen(bandname);
+			goto out;
+		}
+		len = (spl-bandname)+1;
+out:
+		sz = len*10;
+		cnt = 0;	
+		for (int i = 0; i < len; ++i) {
+//			printf("%c\n", bandname[i]);
+			cnt += alphabet[(unsigned int)bandname[i]].sz;
+		}
+//		printf("%s %d %d\n", bandname, sz, cnt);
+		grargs->x = malloc(sizeof(int)*cnt);
+		grargs->y = malloc(sizeof(int)*cnt);
+		int cur = 0;
+		for (int i = 0; i < len; ++i) {
+			for (int j = 0; j < alphabet[(unsigned int)bandname[i]].sz; ++j) {
+				grargs->x[cur] = alphabet[(unsigned int)bandname[i]].x[j]+10*i-5*len;
+				grargs->y[cur] = alphabet[(unsigned int)bandname[i]].y[j]-5;
+				++cur;		
+			}
+		}
+		if (cnt >= 1) {
+//			printf("%d\n", grargs->x[0]);
+		}
 	}
 	else if (grargs->mode == 0) {
 		grargs->logoText = malloc(sizeof(char*));
@@ -169,6 +213,53 @@ void* graphOut(void *args) {
 			refresh();
 			continue;
 		}
+		if (bandname != NULL && bandname != grargs->trackname) {
+			free(grargs->x);
+			free(grargs->y);
+			char* bandname = grargs->trackname;
+			while (strchr(bandname, '/') != NULL) {
+				bandname = strchr(bandname, '/')+1;
+			}	
+			int len = 0;
+			char* spl = strchr(bandname, '-');
+			if (spl == NULL) {	
+				bandname = "Unknown";
+				len = strlen(bandname);
+				goto out1;
+			}
+			if (spl <= bandname) {
+				bandname = "Unknown";
+				len = strlen(bandname);
+				goto out1;
+			}
+			while (*spl == '-' || *spl == ' ') {
+				--spl;
+			}
+			if (spl < bandname) {
+				bandname = "Unknown";
+				len = strlen(bandname);
+				goto out1;
+			}
+			len = (spl-bandname)+1;
+out1:
+			sz = len*10;
+			cnt = 0;
+			for (int i = 0; i < len; ++i) {
+				cnt += alphabet[(unsigned int)bandname[i]].sz;
+			}
+			grargs->x = malloc(sizeof(int)*cnt);
+			grargs->y = malloc(sizeof(int)*cnt);
+			int cur = 0;
+			for (int i = 0; i < len; ++i) {
+				for (int j = 0; j < alphabet[(unsigned int)bandname[i]].sz; ++j) {
+					grargs->x[cur] = alphabet[(unsigned int)bandname[i]].x[j]+10*i-5*len;
+					grargs->y[cur] = alphabet[(unsigned int)bandname[i]].y[j]-5;
+					++cur;			
+				}
+			}	
+//			printf("%d\n", grargs->x[0]);
+			stdist = 3*sz/2;
+		}
 		float *rptr = ((audioData*)(grargs->userData))->buffer;	
 		clear();
 		int32_t intensity = 0;
@@ -191,7 +282,8 @@ void* graphOut(void *args) {
 			int32_t elapsed = (curtime.tv_sec - rawtime.tv_sec)*1000+(curtime.tv_nsec - rawtime.tv_nsec)/1000000;
 			for (int i = 0; i < cnt; ++i) {
                         	int x_cur, y_cur;
-                        	x_cur = mid_w+(int)(grargs->x[i]*sin(ang)); 
+				double x_coef = 0.75*w/sz < 1 ? 0.75*w/sz : 1;
+                        	x_cur = mid_w+(int)((grargs->x[i]*sin(ang))*x_coef); 
                         	y_cur = mid_h+(int)(grargs->y[i]*(stdist-grargs->x[i]*cos(ang))/stdist);
                         	mvaddch(y_cur, x_cur, '8');
                 	}
@@ -238,6 +330,7 @@ void pl_free(playlist_t* pl) {
 PaError openAudioFile(audioData* data, char* name, int ch, PaStream** outStream) {
 	data->file = sf_open(name, SFM_READ, &data->sfinfo);	
 	if (!data->file) {
+		fprintf(stderr, "Unable to open file!\n");
 		return paNoError+1;
 	}
 	data->framesRemaining = data->sfinfo.frames;	
@@ -272,8 +365,26 @@ void shuffle(playlist_t* list, int n) {
 	}
 }
 
+char* allocFilename(char* songname) {
+	int move = 0;
+	if (!strchr(songname, '/')) {
+		move = 2;
+	}
+//	printf("len is %ld\n", strlen(songname));
+	char* song = calloc(strlen(songname)+move+1, sizeof(char));
+	memmove(song+move, songname, strlen(songname));
+	if (move != 0) {
+		song[0] = '.';
+		song[1] = '/';
+	}
+	song[strlen(songname)+move] = 0;
+//	printf("len is %ld\n", strlen(song));
+	return song;
+}
+
 int main(int argc, char** argv)	{	
 	srand(time(NULL));
+	alphabet_init();	
 	playlist_t* playlist_b = NULL;
 	playlist_t* playlist_e = NULL;
 	playlist_t* curSong = NULL;
@@ -348,21 +459,22 @@ int main(int argc, char** argv)	{
 		}
 		while ((entry = readdir(dir)) != NULL) {
 			size_t len = strlen(entry->d_name);
+			printf("%s\n", entry->d_name);
 			if (len > 4 && (strncmp(entry->d_name+len-4, ".mp3", 4) == 0 || strncmp(entry->d_name+len-4, ".wav", 4) == 0 || strncmp(entry->d_name+len-5, ".flac", 5) == 0)) {
 				++songs;
+				printf("song\n");
 				playlist_t* new = malloc(sizeof(playlist_t));
 				if (new == NULL) {
 					closedir(dir);
-					fprintf(stderr, "Unable to allicate playlist!\n");
+					fprintf(stderr, "Unable to allocate playlist!\n");
 					return 0;
 				}
-				new->song = calloc(len, sizeof(char));
 				new->next = NULL;
 				new->prev = NULL;
 				if (entry->d_name[len-1] == '\n') {
 					entry->d_name[len-1] = 0;
 				}
-				memmove(new->song, entry->d_name, len);
+				new->song = allocFilename(entry->d_name);
 				if (playlist_b == NULL) {
 					playlist_b = new;
 					playlist_e = new;
@@ -378,8 +490,7 @@ int main(int argc, char** argv)	{
 	}	
 	else if (!list) {
 		playlist_b = malloc(sizeof(playlist_t)*1);
-		playlist_b->song = calloc(strlen(songname), sizeof(char));
-		memmove(playlist_b->song, songname, strlen(songname));
+		playlist_b->song = allocFilename(songname);
 		songs = 1;
 	}
 	paused = false;
@@ -420,9 +531,11 @@ int main(int argc, char** argv)	{
 	ch--; 
 	PaStream* outStream;
 	curSong = playlist_b;
+	printf("%s\n", curSong->song);
 	err = openAudioFile(&data, curSong->song, ch, &outStream);
 	if (err != paNoError) {
 		fprintf(stderr, "PortAudio error! %s\n", Pa_GetErrorText(err));
+		printf("%d", err);
 		free(data.buffer);
 		pl_free(playlist_b);
 		Pa_Terminate();
@@ -433,6 +546,10 @@ int main(int argc, char** argv)	{
 	pthread_t graph_id;	
 	gr_args.framesPerBuffer = 256;
 	gr_args.userData = &data;
+	gr_args.trackname = curSong->song;
+	while (strchr(gr_args.trackname, '/') != NULL) {
+		gr_args.trackname = strchr(gr_args.trackname, '/')+1;
+	}	
 	pthread_create(&graph_id, NULL, graphOut, &gr_args);
 	acc = 2*getmaxx(stdscr);
 	yres = getmaxy(stdscr);
@@ -513,6 +630,11 @@ int main(int argc, char** argv)	{
 							Pa_Terminate();
 							return 0;
 						}
+						gr_args.trackname = curSong->song;
+						while (strchr(gr_args.trackname, '/') != NULL) {
+							gr_args.trackname = strchr(gr_args.trackname, '/')+1;
+						}
+						printf("%s\n", curSong->song);
 					break;
 					case 1: //prev
 						if (curSong == playlist_b || curSong->prev == NULL) {
@@ -548,6 +670,10 @@ int main(int argc, char** argv)	{
 							endwin();
 							Pa_Terminate();
 							return 0;
+						}
+						gr_args.trackname = curSong->song;
+						while (strchr(gr_args.trackname, '/') != NULL) {
+							gr_args.trackname = strchr(gr_args.trackname, '/')+1;
 						}
 					break;
 				}
